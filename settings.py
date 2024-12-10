@@ -12,6 +12,7 @@ NETBOX_URL = os.getenv("NETBOX_URL")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN")
 IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", default="False") == "True")
 REPO_PATH = f"{os.path.dirname(os.path.realpath(__file__))}/repo"
+VERBOSE = (os.getenv("VERBOSE", default="False") == "True")
 
 # optionally load vendors through a comma separated list as env var
 VENDORS = list(filter(None, os.getenv("VENDORS", "").split(",")))
@@ -32,7 +33,7 @@ parser.add_argument('--slugs', nargs='+', default=SLUGS,
                     help="List of device-type slugs to import eg. ap4431 ws-c3850-24t-l")
 parser.add_argument('--branch', default=REPO_BRANCH,
                     help="Git branch to use from repo")
-parser.add_argument('--verbose', action='store_true', default=False,
+parser.add_argument('--verbose', action='store_true', default=VERBOSE,
                     help="Print verbose output")
 
 args = parser.parse_args()

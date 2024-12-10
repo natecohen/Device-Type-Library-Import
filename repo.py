@@ -1,8 +1,10 @@
 import os
+import unicodedata
 from glob import glob
 from re import sub as re_sub
-from git import Repo, exc
+
 import yaml
+from git import Repo, exc
 
 
 class DTLRepo:
@@ -36,7 +38,11 @@ class DTLRepo:
         return os.path.join(self.get_absolute_path(), 'module-types')
 
     def slug_format(self, name):
-        return re_sub('\W+', '-', name.lower())
+        value = (
+            unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+        )
+        value = re_sub(r"[^\w\s-]", "", value.lower())
+        return re_sub(r"[-\s]+", "-", value).strip("-_")
 
     def pull_repo(self):
         try:
