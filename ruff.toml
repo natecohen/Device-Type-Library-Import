@@ -6,36 +6,36 @@ output-format = "github"
 preview = true
 explicit-preview-rules = true
 extend-select = [
-    "A"       ,   # Detect shadowed builtins
-    "C4"      ,   # Catch incorrect use of comprehensions, dict, list, etc
-    "ISC"     ,   # Good use of string concatenation
-    "ICN"     ,   # Use common import conventions
-    "RET"     ,   # Good return practices
-    "SIM"     ,   # Common simplification rules
-    "PTH"     ,   # Use pathlib instead of os.path
-    "UP"      ,   # Warn if certain things can change due to newer Python versions
-    "ARG"     ,   # Unused arguments
-    "N"       ,   # PEP8 naming
-    "FURB"    ,   # Refurb suggestions
-    "B005"    ,   # strip-with-multi-characters
-    "B014"    ,   # duplicate-handler-exception
-    "B016"    ,   # raise-literal
-    "B026"    ,   # star-arg-unpacking-after-keyword-arg
-    "B905"    ,   # zip-without-explicit-strict
-    "PIE808"  ,   # unnecessary-range-start
-    "PIE810"  ,   # multiple-starts-ends-with
-    "PLR2044",    # empty-comment
-    "PLR5501",    # collapsible-else-if
-    "PLR1733",    # unnecessary-dict-index-lookup
-    "RUF021"  ,   # parenthesize-chained-operators
-    "RUF059"  ,   # unused-unpacked-variable
-    "RUF013"  ,   # implicit-optional
-    "DOC102"  ,   # docstring-extraneous-parameter
-    "DOC202"  ,   # docstring-extraneous-returns
+    "A"      ,  # Detect shadowed builtins
+    "C4"     ,  # Catch incorrect use of comprehensions, dict, list, etc
+    "ISC"    ,  # Good use of string concatenation
+    "ICN"    ,  # Use common import conventions
+    "RET"    ,  # Good return practices
+    "SIM"    ,  # Common simplification rules
+    "PTH"    ,  # Use pathlib instead of os.path
+    "UP"     ,  # Warn if certain things can change due to newer Python versions
+    "ARG"    ,  # Unused arguments
+    "N"      ,  # PEP8 naming
+    "FURB"   ,  # Refurb suggestions
+    "B005"   ,  # strip-with-multi-characters
+    "B014"   ,  # duplicate-handler-exception
+    "B016"   ,  # raise-literal
+    "B026"   ,  # star-arg-unpacking-after-keyword-arg
+    "B905"   ,  # zip-without-explicit-strict
+    "PIE808" ,  # unnecessary-range-start
+    "PIE810" ,  # multiple-starts-ends-with
+    "PLR2044",  # empty-comment
+    "PLR5501",  # collapsible-else-if
+    "PLR1733",  # unnecessary-dict-index-lookup
+    "RUF021" ,  # parenthesize-chained-operators
+    "RUF059" ,  # unused-unpacked-variable
+    "RUF013" ,  # implicit-optional
+    "DOC102" ,  # docstring-extraneous-parameter
+    "DOC202" ,  # docstring-extraneous-returns
 ]
 ignore = [
-    "PTH123" ,    # builtin-open
-    "N999"    ,   # invalid-module-name
+    "PTH123" ,  # builtin-open
+    "N999"   ,  # invalid-module-name
 ]
 
 [format]
