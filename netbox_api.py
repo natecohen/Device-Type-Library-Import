@@ -1,10 +1,10 @@
 from collections import Counter
+from contextlib import ExitStack
 from pathlib import Path
 
 import pynetbox
 import requests
-
-# from pynetbox import RequestError as APIRequestError
+import urllib3
 
 
 class NetBox:
@@ -26,22 +26,18 @@ class NetBox:
         self.handle = settings.handle
         self.netbox = None
         self.ignore_ssl = settings.IGNORE_SSL_ERRORS
-        self.modules = False
-        self.rack_types = False
-        self.new_filters = False
         self.connect_api()
-        self.verify_compatibility()
         self.existing_manufacturers = self.get_manufacturers()
-        self.device_types = DeviceTypes(self.netbox, self.handle, self.counter, self.ignore_ssl, self.new_filters)
+        self.device_types = DeviceTypes(self.netbox, self.handle, self.counter, self.ignore_ssl)
 
     def connect_api(self):
         try:
             self.netbox = pynetbox.api(self.url, token=self.token)
             if self.ignore_ssl:
                 self.handle.verbose_log("IGNORE_SSL_ERRORS is True, catching exception and disabling SSL verification.")
-                requests.packages.urllib3.disable_warnings()
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                 self.netbox.http_session.verify = False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.handle.exception("Exception", "NetBox API Error", e)
 
     def get_api(self):
@@ -49,21 +45,6 @@ class NetBox:
 
     def get_counter(self):
         return self.counter
-
-    def verify_compatibility(self):
-        # nb.version should be the version in the form '3.2'
-        version_split = [int(x) for x in self.netbox.version.split(".")]
-
-        # Later than 3.2
-        # Might want to check for the module-types entry as well?
-        if version_split[0] > 3 or (version_split[0] == 3 and version_split[1] >= 2):
-            self.modules = True
-            self.rack_types = True
-
-        # check if version >= 4.1 in order to use new filter names (https://github.com/netbox-community/netbox/issues/15410)
-        if version_split[0] >= 4 and version_split[1] >= 1:
-            self.new_filters = True
-            self.handle.log(f"Netbox version {self.netbox.version} found. Using new filters.")
 
     def get_manufacturers(self):
         return {str(item): item for item in self.netbox.dcim.manufacturers.all()}
@@ -97,15 +78,14 @@ class NetBox:
 
             # Pre-process front/rear_image flag, remove flag if present
             device_images_from_library = {}
-            parent_path = str(Path(src_file).parent)
-            image_base = Path(parent_path.replace("device-types", "elevation-images"))
+            image_base = Path(src_file).parent.with_name("elevation-images")
             for i in ["front_image", "rear_image"]:
                 if i in device_type:
                     if device_type[i]:
                         pattern = f"{device_type['slug']}.{i.split('_')[0]}.*"
                         images = list(image_base.glob(pattern))
                         if images:
-                            device_images_from_library[i] = str(images[0])
+                            device_images_from_library[i] = images[0]
                         else:
                             self.handle.log(f"Error locating image file using '{image_base / pattern}'")
                     del device_type[i]
@@ -143,7 +123,7 @@ class NetBox:
                 self.device_types.create_front_ports(device_type["front-ports"], dt.id)
             if "device-bays" in device_type:
                 self.device_types.create_device_bays(device_type["device-bays"], dt.id)
-            if self.modules and "module-bays" in device_type:
+            if "module-bays" in device_type:
                 self.device_types.create_module_bays(device_type["module-bays"], dt.id)
 
             # Finally, update images if any
@@ -168,8 +148,7 @@ class NetBox:
             try:
                 rack_type_res = all_rack_types[curr_mt["manufacturer"]["slug"]][curr_mt["model"]]
                 self.handle.verbose_log(
-                    f"Rack Type Exists: {rack_type_res.manufacturer.name} - "
-                     f"{rack_type_res.model} - {rack_type_res.id}"
+                    f"Rack Type Exists: {rack_type_res.manufacturer.name} - {rack_type_res.model} - {rack_type_res.id}"
                 )
             except KeyError:
                 try:
@@ -177,7 +156,7 @@ class NetBox:
                     self.counter.update({"rack_types_added": 1})
                     self.handle.verbose_log(
                         f"Rack Type Created: {rack_type_res.manufacturer.name} - "
-                         f"{rack_type_res.model} - {rack_type_res.id}"
+                        f"{rack_type_res.model} - {rack_type_res.id}"
                     )
                 except pynetbox.RequestError as exce:
                     self.handle.log(f"Error '{exce.error}' creating rack type: " + f"{curr_mt}")
@@ -207,6 +186,7 @@ class NetBox:
                     )
                 except pynetbox.RequestError as exce:
                     self.handle.log(f"Error '{exce.error}' creating module type: " + f"{curr_mt}")
+                    continue
 
             if "interfaces" in curr_mt:
                 self.device_types.create_module_interfaces(curr_mt["interfaces"], module_type_res.id)
@@ -230,48 +210,27 @@ class DeviceTypes:
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
 
-    def __init__(self, netbox, handle, counter, ignore_ssl, new_filters):
+    def __init__(self, netbox, handle, counter, ignore_ssl):
         self.netbox = netbox
         self.handle = handle
         self.counter = counter
         self.existing_device_types = self.get_device_types()
         self.ignore_ssl = ignore_ssl
-        self.new_filters = new_filters
 
     def get_device_types(self):
         return {str(item): item for item in self.netbox.dcim.device_types.all()}
 
     def get_power_ports(self, device_type):
-        return {
-            str(item): item
-            for item in self.netbox.dcim.power_port_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
-        }
+        return {str(item): item for item in self.netbox.dcim.power_port_templates.filter(device_type_id=device_type)}
 
     def get_rear_ports(self, device_type):
-        return {
-            str(item): item
-            for item in self.netbox.dcim.rear_port_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
-        }
+        return {str(item): item for item in self.netbox.dcim.rear_port_templates.filter(device_type_id=device_type)}
 
     def get_module_power_ports(self, module_type):
-        return {
-            str(item): item
-            for item in self.netbox.dcim.power_port_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
-        }
+        return {str(item): item for item in self.netbox.dcim.power_port_templates.filter(module_type_id=module_type)}
 
     def get_module_rear_ports(self, module_type):
-        return {
-            str(item): item
-            for item in self.netbox.dcim.rear_port_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
-        }
+        return {str(item): item for item in self.netbox.dcim.rear_port_templates.filter(module_type_id=module_type)}
 
     def get_device_type_ports_to_create(self, dcim_ports, device_type, existing_ports):
         to_create = [port for port in dcim_ports if port["name"] not in existing_ports]
@@ -289,10 +248,7 @@ class DeviceTypes:
 
     def create_interfaces(self, interfaces, device_type):
         existing_interfaces = {
-            str(item): item
-            for item in self.netbox.dcim.interface_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.interface_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(interfaces, device_type, existing_interfaces)
 
@@ -326,10 +282,7 @@ class DeviceTypes:
 
     def create_console_ports(self, console_ports, device_type):
         existing_console_ports = {
-            str(item): item
-            for item in self.netbox.dcim.console_port_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.console_port_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(console_ports, device_type, existing_console_ports)
 
@@ -347,10 +300,7 @@ class DeviceTypes:
 
     def create_power_outlets(self, power_outlets, device_type):
         existing_power_outlets = {
-            str(item): item
-            for item in self.netbox.dcim.power_outlet_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.power_outlet_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(power_outlets, device_type, existing_power_outlets)
 
@@ -377,9 +327,7 @@ class DeviceTypes:
     def create_console_server_ports(self, console_server_ports, device_type):
         existing_console_server_ports = {
             str(item): item
-            for item in self.netbox.dcim.console_server_port_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            for item in self.netbox.dcim.console_server_port_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(
             console_server_ports, device_type, existing_console_server_ports
@@ -415,10 +363,7 @@ class DeviceTypes:
 
     def create_front_ports(self, front_ports, device_type):
         existing_front_ports = {
-            str(item): item
-            for item in self.netbox.dcim.front_port_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.front_port_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(front_ports, device_type, existing_front_ports)
 
@@ -446,10 +391,7 @@ class DeviceTypes:
 
     def create_device_bays(self, device_bays, device_type):
         existing_device_bays = {
-            str(item): item
-            for item in self.netbox.dcim.device_bay_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.device_bay_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(device_bays, device_type, existing_device_bays)
 
@@ -467,10 +409,7 @@ class DeviceTypes:
 
     def create_module_bays(self, module_bays, device_type):
         existing_module_bays = {
-            str(item): item
-            for item in self.netbox.dcim.module_bay_templates.filter(
-                **{"device_type_id" if self.new_filters else "devicetype_id": device_type}
-            )
+            str(item): item for item in self.netbox.dcim.module_bay_templates.filter(device_type_id=device_type)
         }
         to_create = self.get_device_type_ports_to_create(module_bays, device_type, existing_module_bays)
 
@@ -488,10 +427,7 @@ class DeviceTypes:
 
     def create_module_interfaces(self, module_interfaces, module_type):
         existing_interfaces = {
-            str(item): item
-            for item in self.netbox.dcim.interface_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
+            str(item): item for item in self.netbox.dcim.interface_templates.filter(module_type_id=module_type)
         }
         to_create = self.get_module_type_ports_to_create(module_interfaces, module_type, existing_interfaces)
 
@@ -525,10 +461,7 @@ class DeviceTypes:
 
     def create_module_console_ports(self, console_ports, module_type):
         existing_console_ports = {
-            str(item): item
-            for item in self.netbox.dcim.console_port_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
+            str(item): item for item in self.netbox.dcim.console_port_templates.filter(module_type_id=module_type)
         }
         to_create = self.get_module_type_ports_to_create(console_ports, module_type, existing_console_ports)
 
@@ -546,10 +479,7 @@ class DeviceTypes:
 
     def create_module_power_outlets(self, power_outlets, module_type):
         existing_power_outlets = {
-            str(item): item
-            for item in self.netbox.dcim.power_outlet_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
+            str(item): item for item in self.netbox.dcim.power_outlet_templates.filter(module_type_id=module_type)
         }
         to_create = self.get_module_type_ports_to_create(power_outlets, module_type, existing_power_outlets)
 
@@ -576,9 +506,7 @@ class DeviceTypes:
     def create_module_console_server_ports(self, console_server_ports, module_type):
         existing_console_server_ports = {
             str(item): item
-            for item in self.netbox.dcim.console_server_port_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
+            for item in self.netbox.dcim.console_server_port_templates.filter(module_type_id=module_type)
         }
         to_create = self.get_module_type_ports_to_create(
             console_server_ports, module_type, existing_console_server_ports
@@ -615,10 +543,7 @@ class DeviceTypes:
 
     def create_module_front_ports(self, front_ports, module_type):
         existing_front_ports = {
-            str(item): item
-            for item in self.netbox.dcim.front_port_templates.filter(
-                **{"module_type_id" if self.new_filters else "moduletype_id": module_type}
-            )
+            str(item): item for item in self.netbox.dcim.front_port_templates.filter(module_type_id=module_type)
         }
         to_create = self.get_module_type_ports_to_create(front_ports, module_type, existing_front_ports)
 
@@ -653,9 +578,6 @@ class DeviceTypes:
         images: map of front_image and/or rear_image filename
         device_type_id: id for the device-type to update
         replace_existing_images: boolean flag, if True, forces upload even if images already exist
-
-        Returns:
-        None
         """
         # Fetch the current device type details using PyNetBox
         device_type = self.netbox.dcim.device_types.get(device_type_id)
@@ -682,8 +604,13 @@ class DeviceTypes:
         url = f"{baseurl}/api/dcim/device-types/{device_type_id}/"
         headers = {"Authorization": f"Token {token}"}
 
-        files = {i: (Path(f).name, open(f, "rb")) for i, f in images.items()}
-        response = requests.patch(url, headers=headers, files=files, verify=(not self.ignore_ssl))
+        with ExitStack() as stack:
+            files = {
+                field_name: (path_obj.name, stack.enter_context(path_obj.open("rb")))
+                for field_name, path_obj in images_to_upload.items()
+            }
+
+            response = requests.patch(url, headers=headers, files=files, verify=(not self.ignore_ssl))
 
         self.handle.log(f"Images {images} updated at {url}: {response}")
         self.counter["images"] += len(images)

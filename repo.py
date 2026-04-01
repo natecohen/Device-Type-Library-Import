@@ -51,7 +51,7 @@ class DTLRepo:
             self.handle.verbose_log(f"Pulled Repo {self.repo.remotes.origin.url}")
         except exc.GitCommandError as git_error:
             self.handle.exception("GitCommandError", self.repo.remotes.origin.url, git_error)
-        except Exception as git_error:
+        except exc.GitError as git_error:
             self.handle.exception("Exception", "Git Repository Error", git_error)
 
     def clone_repo(self):
@@ -60,7 +60,7 @@ class DTLRepo:
             self.handle.log(f"Package Installed {self.repo.remotes.origin.url}")
         except exc.GitCommandError as git_error:
             self.handle.exception("GitCommandError", self.url, git_error)
-        except Exception as git_error:
+        except exc.GitError as git_error:
             self.handle.exception("Exception", "Git Repository Error", git_error)
 
     def get_devices(self, base_path, vendors: list | None = None):

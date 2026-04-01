@@ -30,7 +30,9 @@ class LogHandler:
     def log(message):
         print(message)
 
-    def log_device_ports_created(self, created_ports: list = [], port_type: str = "port"):
+    def log_device_ports_created(self, created_ports: list | None = None, port_type: str = "port"):
+        if created_ports is None:
+            created_ports = []
         for port in created_ports:
             self.verbose_log(
                 f"{port_type} Template Created: {port.name} - "
@@ -39,7 +41,9 @@ class LogHandler:
             )
         return len(created_ports)
 
-    def log_module_ports_created(self, created_ports: list = [], port_type: str = "port"):
+    def log_module_ports_created(self, created_ports: list | None = None, port_type: str = "port"):
+        if created_ports is None:
+            created_ports = []
         for port in created_ports:
             self.verbose_log(
                 f"{port_type} Template Created: {port.name} - "

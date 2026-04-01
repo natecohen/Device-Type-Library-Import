@@ -52,7 +52,7 @@ for var in MANDATORY_ENV_VARS:
         handle.exception(
             "EnvironmentError",
             var,
-            f'Environment variable "{var}" is not set.\n\nMANDATORY_ENV_VARS: {str(MANDATORY_ENV_VARS)}.\n\nCURRENT_ENV_VARS: {str(os.environ)}',
+            f'Environment variable "{var}" is not set.\n\nMANDATORY_ENV_VARS: {MANDATORY_ENV_VARS}.\n\nCURRENT_ENV_VARS: {os.environ}',
         )
 
 dtl_repo = DTLRepo(args, REPO_PATH, handle)
