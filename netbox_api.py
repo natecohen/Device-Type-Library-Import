@@ -212,9 +212,10 @@ class NetBox:
                     pn = mt.get("part_number")
                     if pn:
                         new_model = f"{model} - {pn}"
-                        self.handle.verbose_log(f"Deduplicating module model: {model} -> {new_model}")
+                        self.handle.log(f"Deduplicating module model: {model} -> {new_model}")
                         mt["model"] = new_model
 
+        return module_types
 
 class DeviceTypes:
     def __new__(cls, *args, **kwargs):
@@ -623,7 +624,7 @@ class DeviceTypes:
         }
 
         if not images_to_upload:
-            self.handle.log(f"No new images to upload for device type {device_type}. Skipping.")
+            self.handle.verbose_log(f"No new images to upload for device type {device_type}. Skipping.")
             return
 
         url = f"{baseurl}/api/dcim/device-types/{device_type_id}/"
@@ -637,5 +638,5 @@ class DeviceTypes:
 
             response = requests.patch(url, headers=headers, files=files, verify=(not self.ignore_ssl))
 
-        self.handle.log(f"Images {images} updated at {url}: {response}")
+        self.handle.verbose_log(f"Images {images} updated at {url}: {response}")
         self.counter["images"] += len(images)
