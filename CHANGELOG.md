@@ -15,6 +15,9 @@
 * Replaced `os.path` and `glob` usage with `pathlib`.
 * Replaced `datetime` with `time` for logging elapsed time.
 * Use context manager for opening files in `upload_images`.
+* Remove REPO_URL from mandatory env vars due to default value
+* Env vars work with case-insensitive values
+* Improve device/module/rack type matching by slug instead of model name
 
 ### Removed
 

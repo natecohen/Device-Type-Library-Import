@@ -13,10 +13,10 @@ REPO_URL = os.getenv("REPO_URL", default="https://github.com/netbox-community/de
 REPO_BRANCH = os.getenv("REPO_BRANCH", default="master")
 NETBOX_URL = os.getenv("NETBOX_URL")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN")
-IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", default="False") == "True"
+IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", default="False").lower() == "true"
 REPO_PATH = Path(__file__).resolve().parent / "repo"
-REPLACE_EXISTING_IMAGES = os.getenv("REPLACE_EXISTING_IMAGES", default="False") == "True"
-VERBOSE = os.getenv("VERBOSE", default="False") == "True"
+REPLACE_EXISTING_IMAGES = os.getenv("REPLACE_EXISTING_IMAGES", default="False").lower() == "true"
+VERBOSE = os.getenv("VERBOSE", default="False").lower() == "true"
 
 # optionally load vendors through a comma separated list as env var
 VENDORS = list(filter(None, os.getenv("VENDORS", "").split(",")))
@@ -46,7 +46,7 @@ args.slugs = [s for slug in args.slugs for s in slug.split(",") if s.strip()]
 
 handle = LogHandler(args)
 # Evaluate environment variables and exit if one of the mandatory ones are not set
-MANDATORY_ENV_VARS = ["REPO_URL", "NETBOX_URL", "NETBOX_TOKEN"]
+MANDATORY_ENV_VARS = ["NETBOX_URL", "NETBOX_TOKEN"]
 for var in MANDATORY_ENV_VARS:
     if var not in os.environ:
         handle.exception(

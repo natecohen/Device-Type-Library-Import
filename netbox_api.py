@@ -28,7 +28,7 @@ class NetBox:
         self.ignore_ssl = settings.IGNORE_SSL_ERRORS
         self.connect_api()
         self.existing_manufacturers = self.get_manufacturers()
-        self.device_types = DeviceTypes(self.netbox, self.handle, self.counter, self.ignore_ssl)
+        self.template_manager = DeviceTypes(self.netbox, self.handle, self.counter, self.ignore_ssl)
 
     def connect_api(self):
         try:
@@ -47,14 +47,14 @@ class NetBox:
         return self.counter
 
     def get_manufacturers(self):
-        return {str(item): item for item in self.netbox.dcim.manufacturers.all()}
+        return {item.slug: item for item in self.netbox.dcim.manufacturers.all()}
 
     def create_manufacturers(self, vendors):
         to_create = []
         self.existing_manufacturers = self.get_manufacturers()
         for vendor in vendors:
             try:
-                manufacturer = self.existing_manufacturers[vendor["name"]]
+                manufacturer = self.existing_manufacturers[vendor["slug"]]
                 self.handle.verbose_log(f"Manufacturer Exists: {manufacturer.name} - {manufacturer.id}")
             except KeyError:
                 to_create.append(vendor)
@@ -73,12 +73,14 @@ class NetBox:
     def create_device_types(self, device_types_to_add, replace_existing_images=True):
         for device_type in device_types_to_add:
             # Remove file base path
-            src_file = device_type["src"]
+            src_file = Path(device_type["src"])
             del device_type["src"]
 
             # Pre-process front/rear_image flag, remove flag if present
             device_images_from_library = {}
-            image_base = Path(src_file).parent.with_name("elevation-images")
+
+            image_base = src_file.parents[2] / "elevation-images" / src_file.parent.name
+
             for i in ["front_image", "rear_image"]:
                 if i in device_type:
                     if device_type[i]:
@@ -91,7 +93,7 @@ class NetBox:
                     del device_type[i]
 
             try:
-                dt = self.device_types.existing_device_types[device_type["model"]]
+                dt = self.template_manager.existing_device_types[device_type["slug"]]
                 self.handle.verbose_log(f"Device Type Exists: {dt.manufacturer.name} - " + f"{dt.model} - {dt.id}")
             except KeyError:
                 try:
@@ -106,29 +108,29 @@ class NetBox:
                     continue
 
             if "interfaces" in device_type:
-                self.device_types.create_interfaces(device_type["interfaces"], dt.id)
+                self.template_manager.create_interfaces(device_type["interfaces"], dt.id)
             if "power-ports" in device_type:
-                self.device_types.create_power_ports(device_type["power-ports"], dt.id)
+                self.template_manager.create_power_ports(device_type["power-ports"], dt.id)
             if "power-port" in device_type:
-                self.device_types.create_power_ports(device_type["power-port"], dt.id)
+                self.template_manager.create_power_ports(device_type["power-port"], dt.id)
             if "console-ports" in device_type:
-                self.device_types.create_console_ports(device_type["console-ports"], dt.id)
+                self.template_manager.create_console_ports(device_type["console-ports"], dt.id)
             if "power-outlets" in device_type:
-                self.device_types.create_power_outlets(device_type["power-outlets"], dt.id)
+                self.template_manager.create_power_outlets(device_type["power-outlets"], dt.id)
             if "console-server-ports" in device_type:
-                self.device_types.create_console_server_ports(device_type["console-server-ports"], dt.id)
+                self.template_manager.create_console_server_ports(device_type["console-server-ports"], dt.id)
             if "rear-ports" in device_type:
-                self.device_types.create_rear_ports(device_type["rear-ports"], dt.id)
+                self.template_manager.create_rear_ports(device_type["rear-ports"], dt.id)
             if "front-ports" in device_type:
-                self.device_types.create_front_ports(device_type["front-ports"], dt.id)
+                self.template_manager.create_front_ports(device_type["front-ports"], dt.id)
             if "device-bays" in device_type:
-                self.device_types.create_device_bays(device_type["device-bays"], dt.id)
+                self.template_manager.create_device_bays(device_type["device-bays"], dt.id)
             if "module-bays" in device_type:
-                self.device_types.create_module_bays(device_type["module-bays"], dt.id)
+                self.template_manager.create_module_bays(device_type["module-bays"], dt.id)
 
             # Finally, update images if any
             if device_images_from_library:
-                self.device_types.upload_images(
+                self.template_manager.upload_images(
                     self.url,
                     self.token,
                     device_images_from_library,
@@ -137,16 +139,9 @@ class NetBox:
                 )
 
     def create_rack_types(self, rack_types):
-        all_rack_types = {}
-        for curr_nb_mt in self.netbox.dcim.rack_types.all():
-            if curr_nb_mt.manufacturer.slug not in all_rack_types:
-                all_rack_types[curr_nb_mt.manufacturer.slug] = {}
-
-            all_rack_types[curr_nb_mt.manufacturer.slug][curr_nb_mt.model] = curr_nb_mt
-
         for curr_mt in rack_types:
             try:
-                rack_type_res = all_rack_types[curr_mt["manufacturer"]["slug"]][curr_mt["model"]]
+                rack_type_res = self.template_manager.existing_rack_types[curr_mt["slug"]]
                 self.handle.verbose_log(
                     f"Rack Type Exists: {rack_type_res.manufacturer.name} - {rack_type_res.model} - {rack_type_res.id}"
                 )
@@ -162,16 +157,12 @@ class NetBox:
                     self.handle.log(f"Error '{exce.error}' creating rack type: " + f"{curr_mt}")
 
     def create_module_types(self, module_types):
-        all_module_types = {}
-        for curr_nb_mt in self.netbox.dcim.module_types.all():
-            if curr_nb_mt.manufacturer.slug not in all_module_types:
-                all_module_types[curr_nb_mt.manufacturer.slug] = {}
-
-            all_module_types[curr_nb_mt.manufacturer.slug][curr_nb_mt.model] = curr_nb_mt
-
         for curr_mt in module_types:
             try:
-                module_type_res = all_module_types[curr_mt["manufacturer"]["slug"]][curr_mt["model"]]
+                module_type_res = self.template_manager.existing_module_types[curr_mt["manufacturer"]["slug"]][
+                    curr_mt["model"]
+                ]
+
                 self.handle.verbose_log(
                     f"Module Type Exists: {module_type_res.manufacturer.name} - "
                     f"{module_type_res.model} - {module_type_res.id}"
@@ -189,21 +180,21 @@ class NetBox:
                     continue
 
             if "interfaces" in curr_mt:
-                self.device_types.create_module_interfaces(curr_mt["interfaces"], module_type_res.id)
+                self.template_manager.create_module_interfaces(curr_mt["interfaces"], module_type_res.id)
             if "power-ports" in curr_mt:
-                self.device_types.create_module_power_ports(curr_mt["power-ports"], module_type_res.id)
+                self.template_manager.create_module_power_ports(curr_mt["power-ports"], module_type_res.id)
             if "console-ports" in curr_mt:
-                self.device_types.create_module_console_ports(curr_mt["console-ports"], module_type_res.id)
+                self.template_manager.create_module_console_ports(curr_mt["console-ports"], module_type_res.id)
             if "power-outlets" in curr_mt:
-                self.device_types.create_module_power_outlets(curr_mt["power-outlets"], module_type_res.id)
+                self.template_manager.create_module_power_outlets(curr_mt["power-outlets"], module_type_res.id)
             if "console-server-ports" in curr_mt:
-                self.device_types.create_module_console_server_ports(
+                self.template_manager.create_module_console_server_ports(
                     curr_mt["console-server-ports"], module_type_res.id
                 )
             if "rear-ports" in curr_mt:
-                self.device_types.create_module_rear_ports(curr_mt["rear-ports"], module_type_res.id)
+                self.template_manager.create_module_rear_ports(curr_mt["rear-ports"], module_type_res.id)
             if "front-ports" in curr_mt:
-                self.device_types.create_module_front_ports(curr_mt["front-ports"], module_type_res.id)
+                self.template_manager.create_module_front_ports(curr_mt["front-ports"], module_type_res.id)
 
 
 class DeviceTypes:
@@ -214,11 +205,26 @@ class DeviceTypes:
         self.netbox = netbox
         self.handle = handle
         self.counter = counter
-        self.existing_device_types = self.get_device_types()
         self.ignore_ssl = ignore_ssl
 
+        self.existing_device_types = self.get_device_types()
+        self.existing_module_types = self.get_module_types()
+        self.existing_rack_types = self.get_rack_types()
+
     def get_device_types(self):
-        return {str(item): item for item in self.netbox.dcim.device_types.all()}
+        return {item.slug: item for item in self.netbox.dcim.device_types.all()}
+
+    def get_rack_types(self):
+        return {item.slug: item for item in self.netbox.dcim.rack_types.all()}
+
+    def get_module_types(self):
+        # Modules don't have slugs, so we index by manufacturer slug, then model string
+        all_module_types = {}
+        for item in self.netbox.dcim.module_types.all():
+            if item.manufacturer.slug not in all_module_types:
+                all_module_types[item.manufacturer.slug] = {}
+            all_module_types[item.manufacturer.slug][item.model] = item
+        return all_module_types
 
     def get_power_ports(self, device_type):
         return {str(item): item for item in self.netbox.dcim.power_port_templates.filter(device_type_id=device_type)}
