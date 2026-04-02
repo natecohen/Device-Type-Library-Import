@@ -35,3 +35,4 @@
 * `profile` from `module_types` is correctly imported on Netbox 4.3+.
 * Module types with duplicate manufacturer and model name are appended with part number for uniqueness. (#181)
 * Existing device types missing the 'parent' role which blocks device bay creation.
+* Existing device types can't update from `null` to `child` `subdevice_role` when they had U height that is not 0.

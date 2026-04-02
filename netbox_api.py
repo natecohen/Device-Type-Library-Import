@@ -96,16 +96,30 @@ class NetBox:
                 dt = self.template_manager.existing_device_types[device_type["slug"]]
                 self.handle.verbose_log(f"Device Type Exists: {dt.manufacturer.name} - " + f"{dt.model} - {dt.id}")
 
-                # Fix for existing device types missing the 'parent' role which blocks device bay creation
+                # Fix for existing device types with outdated subdevice_role or u_height
                 yaml_role = device_type.get("subdevice_role")
+                yaml_u_height = device_type.get("u_height")
+
+                needs_update = False
+
                 if yaml_role:
                     current_role = getattr(dt, "subdevice_role", None)
                     current_role_value = current_role.value if current_role else None
 
                     if current_role_value != yaml_role:
                         dt.subdevice_role = yaml_role
-                        dt.save()
-                        self.handle.verbose_log(f"Updated {dt.model} subdevice_role to '{yaml_role}'")
+                        needs_update = True
+
+                if yaml_u_height is not None:
+                    current_u_height = getattr(dt, "u_height", None)
+
+                    if current_u_height is not None and float(current_u_height) != float(yaml_u_height):
+                        dt.u_height = yaml_u_height
+                        needs_update = True
+
+                if needs_update:
+                    dt.save()
+                    self.handle.verbose_log(f"Updated {dt.model}")
 
             except KeyError:
                 try:
