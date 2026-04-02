@@ -95,9 +95,22 @@ class NetBox:
             try:
                 dt = self.template_manager.existing_device_types[device_type["slug"]]
                 self.handle.verbose_log(f"Device Type Exists: {dt.manufacturer.name} - " + f"{dt.model} - {dt.id}")
+
+                # Fix for existing device types missing the 'parent' role which blocks device bay creation
+                yaml_role = device_type.get("subdevice_role")
+                if yaml_role:
+                    current_role = getattr(dt, "subdevice_role", None)
+                    current_role_value = current_role.value if current_role else None
+
+                    if current_role_value != yaml_role:
+                        dt.subdevice_role = yaml_role
+                        dt.save()
+                        self.handle.verbose_log(f"Updated {dt.model} subdevice_role to '{yaml_role}'")
+
             except KeyError:
                 try:
                     dt = self.netbox.dcim.device_types.create(device_type)
+                    self.template_manager.existing_device_types[dt.slug] = dt
                     self.counter.update({"added": 1})
                     self.handle.verbose_log(f"Device Type Created: {dt.manufacturer.name} - " + f"{dt.model} - {dt.id}")
                 except pynetbox.RequestError as e:
@@ -216,6 +229,7 @@ class NetBox:
                         mt["model"] = new_model
 
         return module_types
+
 
 class DeviceTypes:
     def __new__(cls, *args, **kwargs):

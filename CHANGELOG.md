@@ -34,3 +34,4 @@
 * `UnboundLocalError` when a parent object fails to create. (#133, #168, #169)
 * `profile` from `module_types` is correctly imported on Netbox 4.3+.
 * Module types with duplicate manufacturer and model name are appended with part number for uniqueness. (#181)
+* Existing device types missing the 'parent' role which blocks device bay creation.
