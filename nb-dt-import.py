@@ -22,9 +22,10 @@ def main():
     files, vendors = settings.dtl_repo.get_devices(f"{settings.dtl_repo.repo_path}/module-types/", args.vendors)
     settings.handle.log(f"{len(vendors)} Module Vendors Found")
     module_types = settings.dtl_repo.parse_files(files, slugs=args.slugs)
+    normalized_modules = netbox.normalize_module_types(module_types)
     settings.handle.log(f"{len(module_types)} Module-Types Found")
     netbox.create_manufacturers(vendors)
-    netbox.create_module_types(module_types)
+    netbox.create_module_types(normalized_modules)
 
     settings.handle.log("Rack-Types Enabled. Creating Racks...")
     files, vendors = settings.dtl_repo.get_devices(f"{settings.dtl_repo.repo_path}/rack-types/", args.vendors)

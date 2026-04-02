@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -158,6 +158,9 @@ class NetBox:
 
     def create_module_types(self, module_types):
         for curr_mt in module_types:
+            if "profile" in curr_mt and isinstance(curr_mt["profile"], str):
+                curr_mt["profile"] = {"name": curr_mt["profile"]}
+
             try:
                 module_type_res = self.template_manager.existing_module_types[curr_mt["manufacturer"]["slug"]][
                     curr_mt["model"]
@@ -195,6 +198,22 @@ class NetBox:
                 self.template_manager.create_module_rear_ports(curr_mt["rear-ports"], module_type_res.id)
             if "front-ports" in curr_mt:
                 self.template_manager.create_module_front_ports(curr_mt["front-ports"], module_type_res.id)
+
+    def normalize_module_types(self, module_types):
+        module_groups = defaultdict(list)
+        for mt in module_types:
+            manuf_slug = mt["manufacturer"]["slug"]
+            model = mt["model"]
+            module_groups[(manuf_slug, model)].append(mt)
+
+        for (manuf_slug, model), mt_list in module_groups.items():
+            if len(mt_list) > 1:
+                for mt in mt_list:
+                    pn = mt.get("part_number")
+                    if pn:
+                        new_model = f"{model} - {pn}"
+                        self.handle.verbose_log(f"Deduplicating module model: {model} -> {new_model}")
+                        mt["model"] = new_model
 
 
 class DeviceTypes:

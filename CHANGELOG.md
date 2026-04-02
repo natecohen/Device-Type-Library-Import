@@ -32,3 +32,5 @@
 * `SyntaxWarning` regarding invalid escape sequences in Python 3.12+. (#139)
 * Removed the strict `.git` suffix requirement for repos and set encoding to UTF-8 when opening. (#129, #161)
 * `UnboundLocalError` when a parent object fails to create. (#133, #168, #169)
+* `profile` from `module_types` is correctly imported on Netbox 4.3+.
+* Module types with duplicate manufacturer and model name are appended with part number for uniqueness. (#181)
